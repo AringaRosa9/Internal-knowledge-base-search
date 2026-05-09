@@ -7,18 +7,30 @@ from openai import OpenAI
 
 from app.config import settings
 
-_openai_client: OpenAI | None = None
+_embedding_client: OpenAI | None = None
 _chroma_client: chromadb.PersistentClient | None = None
 _collection: chromadb.Collection | None = None
 
 COLLECTION_NAME = "shanai_knowledge"
 
 
-def _get_openai() -> OpenAI:
-    global _openai_client
-    if _openai_client is None:
-        _openai_client = OpenAI(api_key=settings.openai_api_key)
-    return _openai_client
+def _get_embedding_client() -> OpenAI:
+    global _embedding_client
+    if _embedding_client is None:
+        if settings.embedding_provider == "openai":
+            _embedding_client = OpenAI(api_key=settings.openai_api_key)
+        else:
+            _embedding_client = OpenAI(
+                api_key=settings.custom_embedding_api_key,
+                base_url=settings.custom_embedding_base_url,
+            )
+    return _embedding_client
+
+
+def _get_embedding_model() -> str:
+    if settings.embedding_provider == "openai":
+        return "text-embedding-3-small"
+    return settings.custom_embedding_model or "text-embedding-3-small"
 
 
 def _get_collection() -> chromadb.Collection:
@@ -33,8 +45,8 @@ def _get_collection() -> chromadb.Collection:
 
 
 def create_embedding(text: str) -> list[float]:
-    response = _get_openai().embeddings.create(
-        model="text-embedding-3-small",
+    response = _get_embedding_client().embeddings.create(
+        model=_get_embedding_model(),
         input=text,
     )
     return response.data[0].embedding
